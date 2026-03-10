@@ -1,0 +1,221 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    /* Discord dark palette */
+    --dc-bg-0: #1e1f22;
+    --dc-bg-1: #2b2d31;
+    --dc-bg-2: #313338;
+    --dc-bg-3: #383a40;
+    --dc-bg-4: #404249;
+    --dc-text-1: #dbdee1;
+    --dc-text-2: #b5bac1;
+    --dc-text-3: #80848e;
+    --dc-blurple: #5865F2;
+    --dc-blurple-hover: #4752C4;
+    --dc-green: #2d7d46;
+    --dc-green-light: #57ab5a;
+    --dc-red: #a12828;
+    --dc-red-light: #da373c;
+    --dc-border: rgba(255, 255, 255, 0.06);
+    --dc-border-strong: rgba(255, 255, 255, 0.12);
+
+    font-family: 'gg sans', 'Noto Sans', Arial, system-ui, sans-serif;
+    color: var(--dc-text-1);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--dc-bg-0);
+}
+
+h2 { font-size: 0.95rem; font-weight: 600; }
+h3 { font-size: 0.875rem; font-weight: 600; }
+
+a { color: var(--dc-blurple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+input, button {
+    font-size: inherit;
+    font-family: inherit;
+}
+
+button:focus:not(:focus-visible) { outline: none; }
+button:focus-visible { outline: 2px solid var(--dc-blurple); outline-offset: 2px; }
+
+/* ── Rarity text colors (dark-theme adjusted) ───────────────────────── */
+.rarity5 { color: #c9922a; }   /* Core      — amber  */
+.rarity4 { color: #d4a017; }   /* Common    — gold   */
+.rarity3 { color: #57ab5a; }   /* Uncommon  — green  */
+.rarity2 { color: #7289da; }   /* Rare      — blue   */
+.rarity1 { color: #c96dff; }   /* Singular  — purple */
+
+/* ── Rarity backgrounds with accent border ──────────────────────────── */
+.raritybg5 { background-color: rgba(201, 146, 42, 0.12);  border-left: 3px solid #c9922a; }
+.raritybg4 { background-color: rgba(212, 160, 23, 0.10);  border-left: 3px solid #d4a017; }
+.raritybg3 { background-color: rgba(87, 171, 90, 0.10);   border-left: 3px solid #57ab5a; }
+.raritybg2 { background-color: rgba(114, 137, 218, 0.12); border-left: 3px solid #7289da; }
+.raritybg1 { background-color: rgba(201, 109, 255, 0.12); border-left: 3px solid #c96dff; }
+
+/* ── Shared button ──────────────────────────────────────────────────── */
+.material-button {
+    padding: 6px 14px;
+    margin: 2px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    background-color: var(--dc-bg-4);
+    color: var(--dc-text-1);
+    transition: background 0.15s, transform 0.1s;
+}
+
+.material-button:hover {
+    background-color: #4e505a;
+    transform: translateY(-1px);
+}
+
+.material-button:active { transform: translateY(0); }
+
+/* ── Typeahead / svelte-search dark-theme overrides ─────────────────── */
+/*
+ * NOTE: :global() is Svelte compiler syntax — invalid in plain .css files.
+ * Write selectors here WITHOUT :global() wrappers.
+ *
+ * DOM tree (svelte-typeahead wraps svelte-search):
+ *   div[data-svelte-typeahead]   ← library sets background:#fff (scoped)
+ *     form[data-svelte-search]   ← svelte-search component
+ *       input[type=search]       ← library styles via [data-svelte-search] input
+ *     ul.svelte-typeahead-list   ← dropdown
+ */
+
+[data-svelte-typeahead] {
+    flex: 1 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    background-color: transparent !important;
+}
+
+[data-svelte-search] {
+    display: block !important;
+    width: 100% !important;
+    background-color: transparent !important;
+}
+
+[data-svelte-search] input {
+    background-color: var(--dc-bg-1) !important;
+    border: 1px solid var(--dc-border-strong) !important;
+    border-radius: 6px !important;
+    color: var(--dc-text-1) !important;
+    padding: 8px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 14px !important;
+    font-family: inherit !important;
+    outline: none !important;
+    transition: border-color 0.15s !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+[data-svelte-search] input:focus {
+    border-color: var(--dc-blurple) !important;
+    outline: none !important;
+}
+
+[data-svelte-search] input::placeholder {
+    color: var(--dc-text-3) !important;
+}
+
+/* Dropdown opens UPWARD */
+/* Hide the always-rendered empty ul when there are no results */
+.svelte-typeahead-list:not(:has(li)) {
+    display: none !important;
+}
+
+.svelte-typeahead-list {
+    top: unset !important;
+    position: absolute !important;
+    bottom: 100% !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin: 0 0 4px 0 !important;
+    padding: 4px !important;
+    list-style: none !important;
+    background-color: var(--dc-bg-2) !important;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5) !important;
+    z-index: 200 !important;
+    max-height: 220px !important;
+    overflow-y: auto !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--dc-border-strong) !important;
+}
+
+.svelte-typeahead-list li {
+    border-radius: 4px !important;
+    margin: 1px 0 !important;
+    border-bottom: none !important;
+}
+
+.svelte-typeahead-list li[aria-selected="true"],
+.svelte-typeahead-list li.selected,
+.svelte-typeahead-list li:hover {
+    background-color: var(--dc-bg-3) !important;
+}
+
+.motifResult {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 6px;
+}
+
+.motifTitle {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.motifSlug {
+    font-size: 11px;
+    color: var(--dc-text-3);
+}
+
+/* ── Global animations ──────────────────────────────────────────────── */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    15%  { transform: translateX(-6px); }
+    30%  { transform: translateX(6px); }
+    45%  { transform: translateX(-4px); }
+    60%  { transform: translateX(4px); }
+    75%  { transform: translateX(-2px); }
+}
+
+@keyframes slideUp {
+    from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+    to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+
+@keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(88, 101, 242, 0.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(88, 101, 242, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(88, 101, 242, 0); }
+}
+
+@keyframes cardIn {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes errorPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.6); }
+    70%  { transform: scale(0.85); }
+    100% { transform: scale(1); }
+}
+
+@keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}

@@ -1,0 +1,58 @@
+# Sensitive environment variables
+.env
+
+# Dependencies
+node_modules
+
+# Downloaded media (large binary files — rebuilt by download scripts)
+server/audio/
+server/images/
+
+# Runtime database
+server/motifle.db
+
+# Generated data files (rebuilt by musicToSongs.py)
+client/public/game_songs.json
+client/public/game_motifs.json
+game_songs.json
+game_motifs.json
+song_downloads.csv
+image_downloads.csv
+
+# Build output
+dist
+dist-ssr
+client/dist
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude AI session files
+.claude/
+
+# Old app — hsmusic data repo (clone manually: git clone https://github.com/hsmusic/hsmusic-data old-app/hsmusic-data)
+old-app/hsmusic-data/
+
+# Old app generated/static data
+old-app/static/game_songs.json
+old-app/static/game_motifs.json
+old-app/static/game_songs_old.json
+
+# Runtime artifacts
+server/failed.txt
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
