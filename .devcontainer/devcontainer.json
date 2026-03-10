@@ -12,15 +12,24 @@
   "postCreateCommand": {
     "server-deps": "cd server && npm install",
     "client-deps": "cd client && npm install",
-    "python-deps": "pip install pyyaml requests pillow"
+    "python-deps": "pip install pyyaml requests pillow",
   },
+  "postStartCommand": "bash /workspaces/motifle-discord/scripts/dev-start.sh",
   "customizations": {
     "vscode": {
       "extensions": [
         "anthropic.claude-code",
         "svelte.svelte-vscode",
         "eamodio.gitlens"
-      ]
+      ],
+      "mcp": {
+        "servers": {
+          "fetch": {
+            "command": "npx",
+            "args": ["-y", "mcp-fetch-server"]
+          }
+        }
+      }
     }
   }
 }
