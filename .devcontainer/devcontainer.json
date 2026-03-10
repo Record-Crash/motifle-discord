@@ -1,0 +1,26 @@
+{
+  "name": "Motifle Discord",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {}
+  },
+  "forwardPorts": [3001, 5173],
+  "portsAttributes": {
+    "3001": { "label": "Express Server" },
+    "5173": { "label": "Vite Dev Server" }
+  },
+  "postCreateCommand": {
+    "server-deps": "cd server && npm install",
+    "client-deps": "cd client && npm install",
+    "python-deps": "pip install pyyaml requests pillow"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "svelte.svelte-vscode",
+        "eamodio.gitlens"
+      ]
+    }
+  }
+}
