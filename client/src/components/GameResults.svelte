@@ -9,6 +9,7 @@
     let countdownTime;
     let isCurrentGame;
     let artists = [];
+    let copyLabel = 'Copy';
 
     onMount(() => {
         countdownTime = getHumanReadableUntilMidnightString();
@@ -20,6 +21,32 @@
         countdownTime = getHumanReadableUntilMidnightString();
         isCurrentGame = getIsCurrentGame();
         artists = getArtists();
+    }
+
+    const RARITY_EMOJI = { 5: '🟣', 4: '🟡', 3: '🟢', 2: '🔵', 1: '🩷' };
+
+    function buildShareText() {
+        const icon = game.status === 'won' ? '🎉' : '😔';
+        const squares = game.displayedMotifs
+            .map((m) => m.isGuessed ? (RARITY_EMOJI[m.rarity] ?? '🟪') : '⬛')
+            .join('');
+        return [
+            `Motifle ${game.dateString} ${icon}`,
+            `${game.nLeitmotifsGuessed}/${game.nTotalLeitmotifs} motifs · ${game.points} pts`,
+            squares,
+            `https://hsmusic.wiki/track/${game.song.slug}`,
+        ].join('\n');
+    }
+
+    async function copyResults() {
+        try {
+            await navigator.clipboard.writeText(buildShareText());
+            copyLabel = 'Copied!';
+            setTimeout(() => (copyLabel = 'Copy'), 2000);
+        } catch {
+            copyLabel = 'Failed';
+            setTimeout(() => (copyLabel = 'Copy'), 2000);
+        }
     }
 
     function getIsCurrentGame() {
@@ -76,6 +103,8 @@
         {/if}
 
         <div class="result-actions">
+            <button class="material-button copy" on:click={copyResults}>{copyLabel}</button>
+            <button class="material-button wiki" on:click={() => openLink(game.song.wikiUrl)}>Wiki ↗</button>
             <button class="material-button reset" on:click={onReset}>Reset day</button>
         </div>
     </div>

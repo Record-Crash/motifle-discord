@@ -39,8 +39,11 @@ Client proxies `/api`, `/audio`, `/images` to the server via Vite (`client/vite.
 
 ```bash
 # Servers are auto-started on container start via scripts/dev-start.sh
-# To restart manually:
+# To restart both:
 bash scripts/dev-start.sh
+
+# To restart only the Express server (faster, leaves Vite running):
+bash scripts/restart-server.sh
 
 # Check server health
 tail -n 100 logs/server.log
@@ -57,7 +60,8 @@ pgrep -a vite
 ## Known quirks
 
 - **WSL2**: `@browser` tool not supported (Native Messaging doesn't cross WSL boundary)
-- **Vite HMR**: Uses `usePolling: true` in vite.config.js — required for WSL2 file change detection
+- **WSL2 file watching**: `node --watch` / `fs.watch` is unreliable on WSL2. Server uses `nodemon --legacy-watch` (polling) instead — restarts reliably on every save.
+- **Vite HMR**: Uses `usePolling: true` in vite.config.js — same reason
 - **HMR port**: `clientPort: 443` — needed because the devcontainer forwards over HTTPS
 - **`.env` location**: Root of repo, not inside `server/` or `client/` — both load from `../`
 - **ESM**: Both server and client use ES modules (`"type": "module"` in server package.json)

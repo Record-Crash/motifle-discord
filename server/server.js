@@ -80,6 +80,30 @@ app.post("/api/token", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Debounced bot message updates (prevents Discord rate limit hits)
+// ---------------------------------------------------------------------------
+const pendingBotUpdates = new Map(); // key -> { timer, done }
+const BOT_DEBOUNCE_MS = 1500;
+
+function scheduleBotMessage(channelId, date, done) {
+  const key = `${channelId}:${date}`;
+  const existing = pendingBotUpdates.get(key);
+
+  // done=true is sticky: once set, always use true
+  const nextDone = done || (existing?.done ?? false);
+
+  if (existing) clearTimeout(existing.timer);
+
+  const timer = setTimeout(() => {
+    pendingBotUpdates.delete(key);
+    upsertBotMessage(channelId, date, nextDone, gameSongs, gameMotifs)
+      .catch((e) => console.warn("[bot]", e.message));
+  }, BOT_DEBOUNCE_MS);
+
+  pendingBotUpdates.set(key, { timer, done: nextDone });
+}
+
+// ---------------------------------------------------------------------------
 // Guess API
 // ---------------------------------------------------------------------------
 app.post("/api/guess", (req, res) => {
@@ -89,7 +113,7 @@ app.post("/api/guess", (req, res) => {
   }
   insertGuess({ channelId, date, userId, username, avatar, motifSlug });
   broadcastToRoom(channelId, date, { type: "guess", userId, username, avatar, motifSlug });
-  upsertBotMessage(channelId, date, false, gameSongs, gameMotifs).catch((e) => console.warn("[bot]", e.message));
+  scheduleBotMessage(channelId, date, false);
   res.json({ ok: true });
 });
 
@@ -102,7 +126,7 @@ app.get("/api/guesses", (req, res) => {
 app.post("/api/session-update", (req, res) => {
   const { channelId, date, done } = req.body;
   if (!channelId || !date) return res.status(400).json({ error: "Missing channelId or date" });
-  upsertBotMessage(channelId, date, !!done, gameSongs, gameMotifs).catch((e) => console.warn("[bot]", e.message));
+  scheduleBotMessage(channelId, date, !!done);
   res.json({ ok: true });
 });
 

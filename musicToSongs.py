@@ -133,9 +133,7 @@ def best_download_url(urls: list) -> tuple:
 
 def get_track_slug(song: dict, album: dict, album_name: str) -> str:
     """Compute the canonical slug for a track, respecting hsmusic's Suffix Directory rules."""
-    if song.get('Directory'):
-        return song['Directory']
-    name_slug = normalize_wiki_string(song['Track'])
+    name_slug = song.get('Directory') or normalize_wiki_string(song['Track'])
     # Per-track opt-in
     track_suffix = song.get('Suffix Directory')
     # Album-wide opt-in (can be overridden per-track with Suffix Directory: false)

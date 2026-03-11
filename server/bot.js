@@ -11,8 +11,8 @@ GlobalFonts.registerFromPath(path.join(__dirname, "fonts/Inter-Bold.otf"), "Inte
 
 const DISCORD_API = "https://discord.com/api/v10";
 const RARITY_POINTS = { 1: 500, 2: 250, 3: 175, 4: 125, 5: 100 };
-const RARITY_COLORS = { 5: "#5865f2", 4: "#fee75c", 3: "#57f287", 2: "#5865f2", 1: "#eb459e" };
-const RARITY_BG     = { 5: "#3c45c5", 4: "#d4af00", 3: "#2d8a50", 2: "#3c45c5", 1: "#a0295c" };
+const RARITY_COLORS = { 5: "#4a2323", 4: "#c8a000", 3: "#1e8200", 2: "#0027c3", 1: "#7a00d1" };
+const RARITY_BG     = { 5: "#301616", 4: "#a58400", 3: "#165e00", 2: "#001e94", 1: "#6400ac" };
 
 function botFetch(path, options = {}) {
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -302,14 +302,13 @@ async function postDailySummary(channelId, date, gameSongs, gameMotifs) {
     lines.push(`${prefix}**${n}/${total}**: ${mentions}`);
   }
 
-  const res = await botFetch(`/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      content: lines.join("\n"),
-      allowed_mentions: { users: players.map((p) => p.userId) },
-    }),
-  });
+  const pngBuf = await renderGroupPreview(guesses, gameSongs, gameMotifs, date);
+  const form = buildMultipartForm(
+    { content: lines.join("\n"), allowed_mentions: { users: players.map((p) => p.userId) } },
+    pngBuf
+  );
+
+  const res = await botFetch(`/channels/${channelId}/messages`, { method: "POST", body: form });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`postDailySummary failed ${res.status}: ${text}`);
