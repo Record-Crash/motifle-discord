@@ -46,18 +46,18 @@ button:focus:not(:focus-visible) { outline: none; }
 button:focus-visible { outline: 2px solid var(--dc-blurple); outline-offset: 2px; }
 
 /* ── Rarity text colors (dark-theme adjusted) ───────────────────────── */
-.rarity5 { color: #c9922a; }   /* Core      — amber  */
-.rarity4 { color: #d4a017; }   /* Common    — gold   */
-.rarity3 { color: #57ab5a; }   /* Uncommon  — green  */
-.rarity2 { color: #7289da; }   /* Rare      — blue   */
-.rarity1 { color: #c96dff; }   /* Singular  — purple */
+.rarity5 { color: #b81313; }   /* Core      — red  */
+.rarity4 { color: #c8a000; }   /* Common    — yellow   */
+.rarity3 { color: #1e8200; }   /* Uncommon  — green  */
+.rarity2 { color: #2444c2; }   /* Rare      — blue   */
+.rarity1 { color: #791eb9; }   /* Singular  — purple */
 
 /* ── Rarity backgrounds with accent border ──────────────────────────── */
-.raritybg5 { background-color: rgba(201, 146, 42, 0.12);  border-left: 3px solid #c9922a; }
-.raritybg4 { background-color: rgba(212, 160, 23, 0.10);  border-left: 3px solid #d4a017; }
-.raritybg3 { background-color: rgba(87, 171, 90, 0.10);   border-left: 3px solid #57ab5a; }
-.raritybg2 { background-color: rgba(114, 137, 218, 0.12); border-left: 3px solid #7289da; }
-.raritybg1 { background-color: rgba(201, 109, 255, 0.12); border-left: 3px solid #c96dff; }
+.raritybg5 { background-color: #301616; border: 1px solid #4a2323; }   /* Core      — red  */
+.raritybg4 { background-color: #2b2200; border: 1px solid #504000; }   /* Common    — yellow   */
+.raritybg3 { background-color: #0e3a00; border: 1px solid #155800; }   /* Uncommon  — green  */
+.raritybg2 { background-color: #001463; border: 1px solid #001d91; }   /* Rare      — blue   */
+.raritybg1 { background-color: #3e006b; border: 1px solid #550092; }   /* Singular  — purple */
 
 /* ── Shared button ──────────────────────────────────────────────────── */
 .material-button {
