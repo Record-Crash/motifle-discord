@@ -135,6 +135,7 @@ class Game {
             ['the-beginning-of-something-really-excellent', 'gardener'],
             ['candles-and-clockwork-alpha-version', 'candles-and-clockwork'],
             ['karkats-theme', 'crustacean'],
+            ['terezis-theme', 'the-lemonsnout-turnabout'],
             ['arisen-anew', 'psych0ruins'],
             ['nepetas-theme', 'walls-covered-in-blood'],
             ['virgin-orb', 'darling-kanaya'],

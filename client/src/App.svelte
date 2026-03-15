@@ -87,6 +87,20 @@ async function submitGuessToServer(motifSlug) {
     } catch (e) { console.warn('[guess api]', e); }
 }
 
+function submitErrorCount() {
+    if (!discordSdk?.channelId) return;
+    fetch('/api/session-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            channelId: discordSdk.channelId,
+            date: currentGame.dateString,
+            userId: user.id,
+            errorCount: currentGame.errorCount,
+        }),
+    }).catch((e) => console.warn('[session-error api]', e));
+}
+
 function notifySessionDone() {
     if (!discordSdk?.channelId) return;
     fetch('/api/session-update', {
@@ -209,6 +223,7 @@ function submitMotif(event) {
         submitGuessToServer(motif.slug);
         addGuesser(motif.slug, { userId: user.id, username: user.global_name ?? user.username, avatar: user.avatar });
     }
+    if (success === 'error') submitErrorCount();
     updateGame();
     if (currentGame.status !== GAME_STATUS.ONGOING) notifySessionDone();
 }

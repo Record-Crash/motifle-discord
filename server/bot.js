@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import WebSocket from "ws";
 import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
-import { getGuesses, getAllChannelsForDate, getSessionMessage, upsertSessionMessage } from "./db.js";
+import { getGuesses, getAllChannelsForDate, getSessionMessage, upsertSessionMessage, getSessionErrors } from "./db.js";
 import { fileURLToPath } from "url";
 import path from "path";
 
@@ -50,7 +50,7 @@ function songForDate(date, gameSongs) {
   return gameSongs[idx] ?? null;
 }
 
-async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date) {
+async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, channelId) {
   const song = songForDate(date, gameSongs);
   const motifList = (song?.leitmotifs ?? [])
     .map((slug) => gameMotifs[slug])
@@ -58,6 +58,9 @@ async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date) {
     .sort((a, b) => b.rarity - a.rarity);
 
   // Aggregate per user
+  const errMap = Object.fromEntries(
+    (channelId ? getSessionErrors(channelId, date) : []).map((r) => [r.userId, r.errorCount])
+  );
   const byUser = new Map();
   for (const g of allGuesses) {
     if (!byUser.has(g.userId)) {
@@ -66,7 +69,8 @@ async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date) {
     byUser.get(g.userId).slugs.add(g.motifSlug);
   }
   let players = [...byUser.values()].map((u) => {
-    const pts = motifList.reduce((s, m) => u.slugs.has(m.slug) ? s + (RARITY_POINTS[m.rarity] ?? 0) : s, 0);
+    const raw = motifList.reduce((s, m) => u.slugs.has(m.slug) ? s + (RARITY_POINTS[m.rarity] ?? 0) : s, 0);
+    const pts = Math.max(raw - (errMap[u.userId] ?? 0), 0);
     return { ...u, pts };
   });
   players.sort((a, b) => b.pts - a.pts);
@@ -206,7 +210,7 @@ async function postGroupMessage(channelId, date, done, gameSongs, gameMotifs) {
   const allGuesses = getGuesses(channelId, date);
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
-  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date);
+  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, channelId);
   const form = buildMultipartForm({ content, components: [LIVE_LAUNCH_ROW] }, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages`, { method: "POST", body: form });
@@ -223,7 +227,7 @@ async function editGroupMessage(channelId, date, messageId, done, gameSongs, gam
   const allGuesses = getGuesses(channelId, date);
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
-  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date);
+  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, channelId);
   const form = buildMultipartForm({ content, attachments: [], components: [LIVE_LAUNCH_ROW] }, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages/${messageId}`, { method: "PATCH", body: form });
@@ -303,7 +307,7 @@ async function postDailySummary(channelId, date, gameSongs, gameMotifs) {
     lines.push(`${prefix}**${n}/${total}**: ${mentions}`);
   }
 
-  const pngBuf = await renderGroupPreview(guesses, gameSongs, gameMotifs, date);
+  const pngBuf = await renderGroupPreview(guesses, gameSongs, gameMotifs, date, channelId);
   const form = buildMultipartForm(
     { content: lines.join("\n"), allowed_mentions: { users: players.map((p) => p.userId) }, components: [LIVE_LAUNCH_ROW] },
     pngBuf

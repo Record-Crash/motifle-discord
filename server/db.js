@@ -36,6 +36,14 @@ db.exec(`
     channel_id   TEXT PRIMARY KEY,
     invite_code  TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS session_errors (
+    channel_id   TEXT NOT NULL,
+    date         TEXT NOT NULL,
+    user_id      TEXT NOT NULL,
+    error_count  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (channel_id, date, user_id)
+  );
 `);
 
 const stmtInsert = db.prepare(`
@@ -101,4 +109,22 @@ export function getInviteCode(channelId) {
 
 export function storeInviteCode(channelId, code) {
   return stmtStoreInvite.run(channelId, code);
+}
+
+const stmtUpsertError = db.prepare(`
+  INSERT INTO session_errors (channel_id, date, user_id, error_count)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(channel_id, date, user_id) DO UPDATE SET error_count = excluded.error_count
+`);
+const stmtGetErrors = db.prepare(`
+  SELECT user_id AS userId, error_count AS errorCount
+  FROM session_errors WHERE channel_id = ? AND date = ?
+`);
+
+export function upsertSessionError(channelId, date, userId, errorCount) {
+  return stmtUpsertError.run(channelId, date, userId, errorCount);
+}
+
+export function getSessionErrors(channelId, date) {
+  return stmtGetErrors.all(channelId, date);
 }

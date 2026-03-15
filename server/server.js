@@ -8,7 +8,7 @@ import { WebSocketServer } from "ws";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { readFileSync } from "fs";
 import cron from "node-cron";
-import { insertGuess, getGuesses, storeWebhook } from "./db.js";
+import { insertGuess, getGuesses, storeWebhook, upsertSessionError } from "./db.js";
 import { upsertBotMessage, postDailySummaries, startGateway } from "./bot.js";
 
 const app = express();
@@ -121,6 +121,15 @@ app.get("/api/guesses", (req, res) => {
   const { channelId, date } = req.query;
   if (!channelId || !date) return res.status(400).json({ error: "Missing channelId or date" });
   res.json(getGuesses(channelId, date));
+});
+
+app.post("/api/session-error", (req, res) => {
+  const { channelId, date, userId, errorCount } = req.body;
+  if (!channelId || !date || !userId || errorCount == null) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+  upsertSessionError(channelId, date, userId, errorCount);
+  res.json({ ok: true });
 });
 
 app.post("/api/session-update", (req, res) => {
