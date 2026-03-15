@@ -7,7 +7,7 @@ A Wordle-style game where players guess video game music leitmotifs, playable in
 | Layer | Tech | Port | Entry point |
 |-------|------|------|-------------|
 | Server | Node.js + Express (ESM) | 3001 | `server/server.js` |
-| Client | Svelte 4 + Vite | 5173 | `client/src/App.svelte` |
+| Client | Svelte 4 + Vite 8 | 5173 | `client/src/App.svelte` |
 | Database | SQLite (better-sqlite3) | — | `server/db.js` |
 | Discord bot | Gateway WebSocket + REST | — | `server/bot.js` |
 
@@ -76,3 +76,7 @@ session_messages(channel_id, date, message_id)   -- tracks Discord message per s
 webhooks(channel_id, webhook_id, webhook_token)
 channel_invites(channel_id, invite_code)
 ```
+
+## TODO tasks
+- Add blurple "Play now!" button that launches the activity below every image sent by the bot.
+- Add handlers so that "User is playing Motifle" becomes "User was playing Motifle" when they exit the game or finish it (win/give up).

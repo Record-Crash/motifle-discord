@@ -11,7 +11,8 @@ GlobalFonts.registerFromPath(path.join(__dirname, "fonts/Inter-Bold.otf"), "Inte
 
 const DISCORD_API = "https://discord.com/api/v10";
 const RARITY_POINTS = { 1: 500, 2: 250, 3: 175, 4: 125, 5: 100 };
-const RARITY_COLORS = { 5: "#4a2323", 4: "#c8a000", 3: "#1e8200", 2: "#0027c3", 1: "#7a00d1" };
+const LIVE_LAUNCH_ROW = { type: 1, components: [{ type: 2, style: 1, label: "Play now!", custom_id: "live_game_launch" }] };
+const RARITY_COLORS = { 5: "#742929", 4: "#c8a000", 3: "#1e8200", 2: "#0027c3", 1: "#7a00d1" };
 const RARITY_BG     = { 5: "#301616", 4: "#a58400", 3: "#165e00", 2: "#001e94", 1: "#6400ac" };
 
 function botFetch(path, options = {}) {
@@ -206,7 +207,7 @@ async function postGroupMessage(channelId, date, done, gameSongs, gameMotifs) {
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
   const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date);
-  const form = buildMultipartForm({ content }, pngBuf);
+  const form = buildMultipartForm({ content, components: [LIVE_LAUNCH_ROW] }, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages`, { method: "POST", body: form });
   if (!res.ok) {
@@ -223,7 +224,7 @@ async function editGroupMessage(channelId, date, messageId, done, gameSongs, gam
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
   const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date);
-  const form = buildMultipartForm({ content, attachments: [] }, pngBuf);
+  const form = buildMultipartForm({ content, attachments: [], components: [LIVE_LAUNCH_ROW] }, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages/${messageId}`, { method: "PATCH", body: form });
   if (!res.ok) {
@@ -304,7 +305,7 @@ async function postDailySummary(channelId, date, gameSongs, gameMotifs) {
 
   const pngBuf = await renderGroupPreview(guesses, gameSongs, gameMotifs, date);
   const form = buildMultipartForm(
-    { content: lines.join("\n"), allowed_mentions: { users: players.map((p) => p.userId) } },
+    { content: lines.join("\n"), allowed_mentions: { users: players.map((p) => p.userId) }, components: [LIVE_LAUNCH_ROW] },
     pngBuf
   );
 

@@ -392,7 +392,10 @@ wss.on("connection", (ws, req) => {
 
   ws.on("close", () => {
     rooms.get(key)?.delete(ws);
-    if (rooms.get(key)?.size === 0) rooms.delete(key);
+    if (rooms.get(key)?.size === 0) {
+      rooms.delete(key);
+      scheduleBotMessage(channelId, date, true);
+    }
   });
 });
 

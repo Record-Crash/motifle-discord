@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [svelte()],
   envDir: '../',
   server: {
+    host: true,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
@@ -19,6 +21,10 @@ export default defineConfig({
       '/images': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:3001',
+        ws: true,
       },
     },
     hmr: {
