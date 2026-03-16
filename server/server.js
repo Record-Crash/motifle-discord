@@ -12,10 +12,11 @@ import { insertGuess, getGuesses, storeWebhook, upsertSessionError } from "./db.
 import { upsertBotMessage, postDailySummaries, startGateway } from "./bot.js";
 
 const app = express();
-const port = process.env.PORT ?? 3001;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
+
+const port = process.env.PORT ?? 3001;
 
 GlobalFonts.registerFromPath(path.join(__dirname, "fonts/Inter-Regular.otf"), "Inter");
 GlobalFonts.registerFromPath(path.join(__dirname, "fonts/Inter-Bold.otf"), "Inter");
