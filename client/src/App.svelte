@@ -191,6 +191,7 @@ function resetDay() {
 function updateGame() {
     displayedMotifs = [...currentGame.displayedMotifs];
     forceReveal = currentGame.status === GAME_STATUS.LOST;
+    currentGame = currentGame; // notify Svelte of mutations (errorCount, status)
     dbg('updateGame → status:', currentGame.status, '| guessed:', currentGame.nLeitmotifsGuessed, '/', currentGame.nTotalLeitmotifs, '| errors:', currentGame.errorCount, '/', currentGame.maxErrors);
     saveGame();
 }
