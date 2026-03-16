@@ -11,7 +11,7 @@
 const BASE = (import.meta.env.VITE_STATIC_BASE || '').replace(/\/$/, '');
 
 export function audioUrl(slug) {
-  return `${BASE}/audio/${slug}.mp3`;
+  return `${BASE}/audio/${slug}.opus`;
 }
 
 export function imageUrl(slug) {

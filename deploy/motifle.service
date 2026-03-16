@@ -1,0 +1,17 @@
+[Unit]
+Description=Motifle Discord Activity
+After=network.target
+
+[Service]
+Type=simple
+# Run `nvm which 20` on the server and replace v20.x.x with the actual version, same with `user`
+Environment=PATH=/home/user/.nvm/versions/node/v20.x.x/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+ExecStart=/home/user/.nvm/versions/node/v20.x.x/bin/node /srv/node-apps/motifle-discord/server/server.js
+WorkingDirectory=/srv/node-apps/motifle-discord/server
+Restart=always
+RestartSec=5
+User=user
+
+[Install]
+WantedBy=multi-user.target

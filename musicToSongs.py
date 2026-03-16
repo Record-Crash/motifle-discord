@@ -41,7 +41,6 @@ import yaml
 # ---------------------------------------------------------------------------
 
 COUNTED_REFERENCE_GROUPS = ['Official Discography', 'group:official']
-INCLUDED_GROUPS = [*COUNTED_REFERENCE_GROUPS, 'Fandom']
 EXCLUDED_GROUPS = ['Desynced']
 
 EXCLUDED_ALBUMS = [
@@ -217,7 +216,7 @@ def scan_valid_songs(slugs_dict: dict, group_whitelist: Optional[list]) -> tuple
         if not album:
             continue
         groups = album.get('Groups', [])
-        if not any(g in INCLUDED_GROUPS for g in groups) or any(g in EXCLUDED_GROUPS for g in groups):
+        if any(g in EXCLUDED_GROUPS for g in groups):
             continue
 
         album_lacks_art = album.get('Has Track Art') is False
@@ -254,6 +253,10 @@ def scan_valid_songs(slugs_dict: dict, group_whitelist: Optional[list]) -> tuple
             for s in song.get('Sampled Tracks', []):
                 samples.append(s if s in slugs_dict else f'track:{normalize_wiki_string(s)}')
 
+            # Official (non-CC) songs are never playable and their audio must not be downloaded
+            if is_official:
+                continue
+
             # Apply group whitelist for daily song eligibility
             in_whitelist = (
                 group_whitelist is None
@@ -281,7 +284,7 @@ def scan_valid_songs(slugs_dict: dict, group_whitelist: Optional[list]) -> tuple
                 'samples': samples,
                 'nLeitmotifs': len(leitmotifs),
                 'wikiUrl': wiki_url,
-                'url': f'/audio/{slug}.mp3',
+                'url': f'/audio/{slug}.opus',
                 'urlType': 'local',
                 'imageUrl': f'/images/{slug}.jpg',
                 'isOfficial': is_official,
@@ -391,16 +394,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--groups', nargs='+', metavar='GROUP',
-                        help='Whitelist groups for daily songs (e.g. canmt umspaf). '
+                        help='Limit daily song pool to these groups (e.g. canmt umspaf). '
+                             'By default all CC groups are eligible; official songs are always excluded. '
                              'All albums are still parsed for leitmotif sourcing.')
     args = parser.parse_args()
 
-    group_whitelist = args.groups  # None = all groups
+    group_whitelist = args.groups  # None = all non-excluded groups; official filtered by isOfficial in filter_songs
 
     # Load existing game_songs.json (for resumability)
     existing_songs: list = []
     if GAME_SONGS_OUT.exists():
-        existing_songs = json.loads(GAME_SONGS_OUT.read_text())
+        existing_songs = [s for s in json.loads(GAME_SONGS_OUT.read_text()) if not s.get('isOfficial')]
         print(f'Loaded {len(existing_songs)} existing songs from {GAME_SONGS_OUT.name}')
     else:
         # First run: seed from old_game_songs (day-sorted → preserved epoch order)
@@ -416,7 +420,7 @@ def main():
                     'samples': s.get('samples', []),
                     'nLeitmotifs': s['nLeitmotifs'],
                     'wikiUrl': s['wikiUrl'],
-                    'url': f'/audio/{s["slug"]}.mp3',
+                    'url': f'/audio/{s["slug"]}.opus',
                     'urlType': 'local',
                     'imageUrl': f'/images/{s["slug"]}.jpg',
                     'isOfficial': s['isOfficial'],

@@ -12,7 +12,7 @@ import { insertGuess, getGuesses, storeWebhook, upsertSessionError } from "./db.
 import { upsertBotMessage, postDailySummaries, startGateway } from "./bot.js";
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT ?? 3001;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
@@ -50,7 +50,7 @@ function songForDate(dateString) {
 // ---------------------------------------------------------------------------
 // Static assets
 // ---------------------------------------------------------------------------
-app.use("/audio",  express.static(path.join(__dirname, "audio")));
+app.use("/audio", express.static(path.join(__dirname, "audio")));
 app.use("/images", express.static(path.join(__dirname, "images")));
 
 // ---------------------------------------------------------------------------
@@ -416,6 +416,12 @@ function broadcastToRoom(channelId, date, payload) {
     if (client.readyState === 1 /* OPEN */) client.send(msg);
   }
 }
+
+// Serve built Svelte client (production only — in dev Vite handles this)
+app.use(express.static(path.join(__dirname, '../client/dist')));
+app.get('*', (_req, res) =>
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'))
+);
 
 server.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
