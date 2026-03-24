@@ -50,7 +50,9 @@ function collectPlayers(allGuesses) {
 }
 
 async function postGroupMessage(channelId, date, done, gameSongs, gameMotifs) {
-  const allGuesses = getGuesses(channelId, date);
+  const session = getSessionMessage(channelId, date);
+  const allGuesses = getGuesses(channelId, date, session?.startedAt);
+  if (allGuesses.length === 0) return;
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
   const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, getSessionErrors(channelId, date));
@@ -70,7 +72,8 @@ async function postGroupMessage(channelId, date, done, gameSongs, gameMotifs) {
 }
 
 async function editGroupMessage(channelId, date, messageId, done, gameSongs, gameMotifs) {
-  const allGuesses = getGuesses(channelId, date);
+  const session = getSessionMessage(channelId, date);
+  const allGuesses = getGuesses(channelId, date, session?.startedAt);
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
   const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, getSessionErrors(channelId, date));

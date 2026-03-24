@@ -20,9 +20,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_guesses_room ON guesses(channel_id, date);
 
   CREATE TABLE IF NOT EXISTS session_messages (
-    channel_id  TEXT NOT NULL,
-    date        TEXT NOT NULL,
-    message_id  TEXT NOT NULL,
+    channel_id     TEXT NOT NULL,
+    date           TEXT NOT NULL,
+    message_id     TEXT NOT NULL,
+    started_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (channel_id, date)
   );
 
@@ -58,8 +60,21 @@ const stmtSelect = db.prepare(`
   ORDER BY guessed_at ASC
 `);
 
+// Migrations for columns added after initial schema (try/catch: no-op if column already exists)
+// Constant literal required — ALTER TABLE ADD COLUMN does not allow function-call defaults.
+// Rows from before the migration get '1970-01-01 00:00:00' which is safely ancient (will expire).
+for (const col of [
+  `ALTER TABLE session_messages ADD COLUMN started_at     TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'`,
+  `ALTER TABLE session_messages ADD COLUMN last_active_at TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'`,
+]) {
+  try { db.exec(col); } catch { /* already exists */ }
+}
+
 const stmtGetSession = db.prepare(`
-  SELECT message_id AS messageId FROM session_messages WHERE channel_id = ? AND date = ?
+  SELECT message_id     AS messageId,
+         started_at     AS startedAt,
+         last_active_at AS lastActiveAt
+  FROM session_messages WHERE channel_id = ? AND date = ?
 `);
 const stmtGetLatestSession = db.prepare(`
   SELECT message_id AS messageId FROM session_messages
@@ -67,15 +82,33 @@ const stmtGetLatestSession = db.prepare(`
   ORDER BY date DESC LIMIT 1
 `);
 const stmtUpsertSession = db.prepare(`
-  INSERT OR REPLACE INTO session_messages (channel_id, date, message_id) VALUES (?, ?, ?)
+  INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+  VALUES (?, ?, ?, datetime('now'), datetime('now'))
+  ON CONFLICT(channel_id, date) DO UPDATE SET
+    message_id     = excluded.message_id,
+    last_active_at = datetime('now')
+`);
+const stmtResetRoom = db.prepare(`
+  INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+  VALUES (?, ?, '', datetime('now'), datetime('now'))
+  ON CONFLICT(channel_id, date) DO UPDATE SET
+    message_id     = '',
+    started_at     = datetime('now'),
+    last_active_at = datetime('now')
+`);
+const stmtSelectSince = db.prepare(`
+  SELECT user_id AS userId, username, avatar, motif_slug AS motifSlug
+  FROM guesses
+  WHERE channel_id = ? AND date = ? AND guessed_at >= ?
+  ORDER BY guessed_at ASC
 `);
 
 export function insertGuess(row) {
   return stmtInsert.run(row);
 }
 
-export function getGuesses(channelId, date) {
-  return stmtSelect.all(channelId, date);
+export function getGuesses(channelId, date, since = null) {
+  return since ? stmtSelectSince.all(channelId, date, since) : stmtSelect.all(channelId, date);
 }
 
 export function getSessionMessage(channelId, date) {
@@ -84,6 +117,10 @@ export function getSessionMessage(channelId, date) {
 
 export function upsertSessionMessage(channelId, date, messageId) {
   return stmtUpsertSession.run(channelId, date, messageId);
+}
+
+export function resetRoom(channelId, date) {
+  return stmtResetRoom.run(channelId, date);
 }
 
 export function getLatestSessionMessage(channelId) {

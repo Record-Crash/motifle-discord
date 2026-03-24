@@ -8,7 +8,7 @@ import { WebSocketServer } from "ws";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { readFileSync } from "fs";
 import cron from "node-cron";
-import { insertGuess, getGuesses, storeWebhook, upsertSessionError } from "./db.js";
+import { insertGuess, getGuesses, storeWebhook, upsertSessionError, getSessionMessage, resetRoom } from "./db.js";
 import { upsertBotMessage, postDailySummaries, startGateway } from "./bot.js";
 
 const app = express();
@@ -389,6 +389,8 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 // rooms: Map<"channelId:date", Set<WebSocket>>
 const rooms = new Map();
 
+const ROOM_EXPIRY_MS = 4 * 60 * 60 * 1000; // 4 hours
+
 wss.on("connection", (ws, req) => {
   const url = new URL(req.url, "http://localhost");
   const channelId = url.searchParams.get("channelId");
@@ -397,6 +399,20 @@ wss.on("connection", (ws, req) => {
   if (!channelId || !date) { ws.close(); return; }
 
   const key = `${channelId}:${date}`;
+
+  // If no clients are in the room right now, check whether the last session
+  // has been idle long enough to warrant a fresh room.
+  if (!rooms.get(key)?.size) {
+    const info = getSessionMessage(channelId, date);
+    if (info?.lastActiveAt) {
+      const idleMs = Date.now() - new Date(info.lastActiveAt + "Z").getTime();
+      if (idleMs > ROOM_EXPIRY_MS) {
+        resetRoom(channelId, date);
+        console.log(`[ws] room expired for ${channelId} ${date} (idle ${Math.round(idleMs / 3600000)}h), starting fresh`);
+      }
+    }
+  }
+
   if (!rooms.has(key)) rooms.set(key, new Set());
   rooms.get(key).add(ws);
 
