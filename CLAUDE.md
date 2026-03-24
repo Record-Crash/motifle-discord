@@ -109,3 +109,12 @@ session_errors(channel_id, date, user_id, error_count) -- persists error counts 
 webhooks(channel_id, webhook_id, webhook_token)
 channel_invites(channel_id, invite_code)
 ```
+
+## TODO tasks
+
+- Add tests.
+- "Leaderboard" with crowns usually sorts by number of guessed songs, but it should sort and bucket by scores. The images seem to account for mistakes in scoring, but the message text accompanying the image doesn't.
+- Messages posted by the bot should always reply to the last message when possible, so people can find the entire history of the game in that channel by navigating replies.
+- If enough time has passed since a player joined a room, a new room should be made or at least a new message should be posted (like above, replying to the last open room). The message should show only the current player and whoever joins that room afterwards. Basically, rooms that have been left empty for long enough cannot be rejoined, their images will remain static, so a new room needs opening. 
+- No need to show the nicknames of the users in the embed images, since we already have them on the message. The avatars should be enough, and we should show them bigger, like in Wordle. Potentially, you can have the avatar occupy the left side of the rectangle completely, with the squares and scores to the right (scores bottom right, squares above and to the left of them).
+- There seems to be an inconsistency in the motif colors used for the embed squares. They should have the same "distance" between border color and interior color. Yellow and Green look pretty good, the rest look weird, so you can use those two as a basis.

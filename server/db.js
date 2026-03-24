@@ -61,6 +61,11 @@ const stmtSelect = db.prepare(`
 const stmtGetSession = db.prepare(`
   SELECT message_id AS messageId FROM session_messages WHERE channel_id = ? AND date = ?
 `);
+const stmtGetLatestSession = db.prepare(`
+  SELECT message_id AS messageId FROM session_messages
+  WHERE channel_id = ? AND message_id != ''
+  ORDER BY date DESC LIMIT 1
+`);
 const stmtUpsertSession = db.prepare(`
   INSERT OR REPLACE INTO session_messages (channel_id, date, message_id) VALUES (?, ?, ?)
 `);
@@ -79,6 +84,10 @@ export function getSessionMessage(channelId, date) {
 
 export function upsertSessionMessage(channelId, date, messageId) {
   return stmtUpsertSession.run(channelId, date, messageId);
+}
+
+export function getLatestSessionMessage(channelId) {
+  return stmtGetLatestSession.get(channelId);
 }
 
 export function getAllChannelsForDate(date) {

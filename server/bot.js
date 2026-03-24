@@ -1,19 +1,10 @@
 import fetch from "node-fetch";
 import WebSocket from "ws";
-import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
-import { getGuesses, getAllChannelsForDate, getSessionMessage, upsertSessionMessage, getSessionErrors } from "./db.js";
-import { fileURLToPath } from "url";
-import path from "path";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-GlobalFonts.registerFromPath(path.join(__dirname, "fonts/Inter-Regular.otf"), "Inter");
-GlobalFonts.registerFromPath(path.join(__dirname, "fonts/Inter-Bold.otf"), "Inter");
+import { getGuesses, getAllChannelsForDate, getSessionMessage, upsertSessionMessage, getSessionErrors, getLatestSessionMessage } from "./db.js";
+import { renderGroupPreview, scorePlayers, songForDate } from "./lib/renderGroupPreview.js";
 
 const DISCORD_API = "https://discord.com/api/v10";
-const RARITY_POINTS = { 1: 500, 2: 250, 3: 175, 4: 125, 5: 100 };
 const LIVE_LAUNCH_ROW = { type: 1, components: [{ type: 2, style: 1, label: "Play now!", custom_id: "live_game_launch" }] };
-const RARITY_COLORS = { 5: "#742929", 4: "#c8a000", 3: "#1e8200", 2: "#0027c3", 1: "#7a00d1" };
-const RARITY_BG     = { 5: "#301616", 4: "#a58400", 3: "#165e00", 2: "#001e94", 1: "#6400ac" };
 
 function botFetch(path, options = {}) {
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -27,7 +18,7 @@ function botFetch(path, options = {}) {
   });
 }
 
-function buildContentText(players, done) {
+export function buildContentText(players, done) {
   if (players.length === 0) return done ? "Someone was playing Motifle" : "Someone is playing Motifle";
   const names = players.map((p) => p.username);
   let joined;
@@ -42,154 +33,6 @@ function buildContentText(players, done) {
   return `${joined} ${verb} playing Motifle`;
 }
 
-function songForDate(date, gameSongs) {
-  const EPOCH = new Date("2023-08-09T00:00:00Z");
-  const d = new Date(date + "T00:00:00Z");
-  const days = Math.round((d - EPOCH) / 86400000);
-  const idx = ((days % gameSongs.length) + gameSongs.length) % gameSongs.length;
-  return gameSongs[idx] ?? null;
-}
-
-async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, channelId) {
-  const song = songForDate(date, gameSongs);
-  const motifList = (song?.leitmotifs ?? [])
-    .map((slug) => gameMotifs[slug])
-    .filter(Boolean)
-    .sort((a, b) => b.rarity - a.rarity);
-
-  // Aggregate per user
-  const errMap = Object.fromEntries(
-    (channelId ? getSessionErrors(channelId, date) : []).map((r) => [r.userId, r.errorCount])
-  );
-  const byUser = new Map();
-  for (const g of allGuesses) {
-    if (!byUser.has(g.userId)) {
-      byUser.set(g.userId, { userId: g.userId, username: g.username ?? g.userId, avatar: g.avatar ?? null, slugs: new Set() });
-    }
-    byUser.get(g.userId).slugs.add(g.motifSlug);
-  }
-  let players = [...byUser.values()].map((u) => {
-    const raw = motifList.reduce((s, m) => u.slugs.has(m.slug) ? s + (RARITY_POINTS[m.rarity] ?? 0) : s, 0);
-    const pts = Math.max(raw - (errMap[u.userId] ?? 0), 0);
-    return { ...u, pts };
-  });
-  players.sort((a, b) => b.pts - a.pts);
-  players = players.slice(0, 12);
-
-  const n = players.length;
-  const COLS = n <= 1 ? 1 : n <= 2 ? 2 : 3;
-  const ROWS = Math.ceil(Math.max(n, 1) / COLS);
-
-  // Per-player sizing: larger panels when fewer players
-  const SQ_SIZE = n <= 1 ? 36 : n <= 4 ? 28 : 22;
-  const SQ_GAP  = n <= 1 ? 7  : n <= 4 ? 6  : 5;
-  const NAME_FONT = n <= 1 ? 22 : n <= 2 ? 20 : 18;
-  const SCORE_FONT = n <= 1 ? 28 : n <= 2 ? 24 : 22;
-  const PANEL_GAP = 16;
-  const HEADER_H = 100;
-
-  const W = n <= 1 ? 640 : n <= 2 ? 900 : 1280;
-  const PANEL_W = Math.floor((W - (COLS + 1) * PANEL_GAP) / COLS);
-
-  // Compute how many motif rows fit per panel
-  const motifsPerRow = Math.max(1, Math.floor((PANEL_W - 24) / (SQ_SIZE + SQ_GAP)));
-  const motifRows = motifList.length === 0 ? 1 : Math.ceil(motifList.length / motifsPerRow);
-  const nameAreaH = NAME_FONT + 20; // name text + padding
-  const motifAreaH = motifRows * (SQ_SIZE + SQ_GAP);
-  const scoreAreaH = SCORE_FONT + 16;
-  const PANEL_H = nameAreaH + motifAreaH + scoreAreaH;
-
-  const H = HEADER_H + ROWS * (PANEL_H + PANEL_GAP) + PANEL_GAP;
-
-  const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext("2d");
-
-  ctx.fillStyle = "#2b2d31";
-  ctx.fillRect(0, 0, W, H);
-
-  // Header
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold ${n <= 2 ? 36 : 40}px Inter`;
-  ctx.textAlign = "center";
-  ctx.fillText("Motifle", W / 2, 52);
-  ctx.fillStyle = "#b5bac1";
-  ctx.font = `${n <= 2 ? 24 : 28}px Inter`;
-  ctx.fillText(date, W / 2, 88);
-
-  if (players.length === 0) {
-    ctx.fillStyle = "#b5bac1";
-    ctx.font = "24px Inter";
-    ctx.fillText("No guesses yet", W / 2, H / 2);
-    return canvas.toBuffer("image/png");
-  }
-
-  for (let i = 0; i < players.length; i++) {
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    const px = PANEL_GAP + col * (PANEL_W + PANEL_GAP);
-    const py = HEADER_H + row * (PANEL_H + PANEL_GAP);
-    const p = players[i];
-
-    ctx.fillStyle = "#313338";
-    ctx.beginPath();
-    ctx.roundRect(px, py, PANEL_W, PANEL_H, 10);
-    ctx.fill();
-
-    // Avatar + username row
-    const AV = NAME_FONT + 4; // avatar diameter = slightly larger than font
-    let nameX = px + 12;
-    if (p.avatar) {
-      try {
-        const avatarUrl = `https://cdn.discordapp.com/avatars/${p.userId}/${p.avatar}.png?size=64`;
-        const img = await loadImage(avatarUrl);
-        const ax = px + 12, ay = py + 8;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(ax + AV / 2, ay + AV / 2, AV / 2, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(img, ax, ay, AV, AV);
-        ctx.restore();
-        nameX = ax + AV + 8;
-      } catch { /* skip avatar on error */ }
-    }
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold ${NAME_FONT}px Inter`;
-    ctx.textAlign = "left";
-    const maxChars = n <= 1 ? 30 : n <= 2 ? 24 : 18;
-    const name = p.username.length > maxChars ? p.username.slice(0, maxChars - 1) + "…" : p.username;
-    ctx.fillText(name, nameX, py + AV / 2 + NAME_FONT / 2 + 6);
-
-    // Motif squares (with row wrapping)
-    let sx = px + 12;
-    let sy = py + nameAreaH;
-    for (const motif of motifList) {
-      if (sx + SQ_SIZE > px + PANEL_W - 12) {
-        sx = px + 12;
-        sy += SQ_SIZE + SQ_GAP;
-      }
-      const guessed = p.slugs.has(motif.slug);
-      ctx.fillStyle = guessed ? (RARITY_BG[motif.rarity] ?? "#5865f2") : "#1e1f22";
-      ctx.beginPath();
-      ctx.roundRect(sx, sy, SQ_SIZE, SQ_SIZE, 4);
-      ctx.fill();
-      if (guessed) {
-        ctx.fillStyle = RARITY_COLORS[motif.rarity] ?? "#5865f2";
-        ctx.beginPath();
-        ctx.roundRect(sx + 2, sy + 2, SQ_SIZE - 4, SQ_SIZE - 4, 3);
-        ctx.fill();
-      }
-      sx += SQ_SIZE + SQ_GAP;
-    }
-
-    // Score
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold ${SCORE_FONT}px Inter`;
-    ctx.textAlign = "right";
-    ctx.fillText(`${p.pts} pts`, px + PANEL_W - 12, py + PANEL_H - 12);
-  }
-
-  return canvas.toBuffer("image/png");
-}
 
 function buildMultipartForm(payloadJson, pngBuf) {
   const form = new FormData();
@@ -210,8 +53,11 @@ async function postGroupMessage(channelId, date, done, gameSongs, gameMotifs) {
   const allGuesses = getGuesses(channelId, date);
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
-  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, channelId);
-  const form = buildMultipartForm({ content, components: [LIVE_LAUNCH_ROW] }, pngBuf);
+  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, getSessionErrors(channelId, date));
+  const prevMsg = getLatestSessionMessage(channelId);
+  const payload = { content, components: [LIVE_LAUNCH_ROW] };
+  if (prevMsg?.messageId) payload.message_reference = { message_id: prevMsg.messageId };
+  const form = buildMultipartForm(payload, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages`, { method: "POST", body: form });
   if (!res.ok) {
@@ -227,7 +73,7 @@ async function editGroupMessage(channelId, date, messageId, done, gameSongs, gam
   const allGuesses = getGuesses(channelId, date);
   const players = collectPlayers(allGuesses);
   const content = buildContentText(players, done);
-  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, channelId);
+  const pngBuf = await renderGroupPreview(allGuesses, gameSongs, gameMotifs, date, getSessionErrors(channelId, date));
   const form = buildMultipartForm({ content, attachments: [], components: [LIVE_LAUNCH_ROW] }, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages/${messageId}`, { method: "PATCH", body: form });
@@ -274,44 +120,35 @@ async function postDailySummary(channelId, date, gameSongs, gameMotifs) {
   if (guesses.length === 0) return;
 
   const song = songForDate(date, gameSongs);
-  const motifList = (song?.leitmotifs ?? []).map((s) => gameMotifs[s]).filter(Boolean);
+  const motifList = (song?.leitmotifs ?? []).map((s) => gameMotifs[s]).filter(Boolean).sort((a, b) => b.rarity - a.rarity);
   const total = motifList.length;
-
-  const byUser = new Map();
-  for (const g of guesses) {
-    if (!byUser.has(g.userId)) {
-      byUser.set(g.userId, { userId: g.userId, username: g.username, slugs: new Set() });
-    }
-    byUser.get(g.userId).slugs.add(g.motifSlug);
-  }
-
-  const players = [...byUser.values()].map((u) => {
-    const correct = motifList.filter((m) => u.slugs.has(m.slug));
-    const pts = correct.reduce((s, m) => s + (RARITY_POINTS[m.rarity] ?? 0), 0);
-    return { userId: u.userId, nCorrect: correct.length, pts };
-  });
-  players.sort((a, b) => b.nCorrect - a.nCorrect || b.pts - a.pts);
+  const sessionErrors = getSessionErrors(channelId, date);
+  const players = scorePlayers(guesses, motifList, sessionErrors);
 
   const grouped = new Map();
   for (const p of players) {
-    if (!grouped.has(p.nCorrect)) grouped.set(p.nCorrect, []);
-    grouped.get(p.nCorrect).push(p);
+    if (!grouped.has(p.pts)) grouped.set(p.pts, []);
+    grouped.get(p.pts).push(p);
   }
 
   const lines = [`**Motifle · ${date} Results** *(${song?.name ?? "?"})*`, ""];
   let first = true;
-  for (const [n, group] of [...grouped.entries()].sort((a, b) => b[0] - a[0])) {
+  for (const [pts, group] of [...grouped.entries()].sort((a, b) => b[0] - a[0])) {
     const prefix = first ? "👑 " : "";
     first = false;
-    const mentions = group.map((p) => `<@${p.userId}> (${p.pts} pts)`).join("  ");
-    lines.push(`${prefix}**${n}/${total}**: ${mentions}`);
+    const mentions = group.map((p) => `<@${p.userId}> (${p.nCorrect}/${total})`).join("  ");
+    lines.push(`${prefix}**${pts} pts**: ${mentions}`);
   }
 
-  const pngBuf = await renderGroupPreview(guesses, gameSongs, gameMotifs, date, channelId);
-  const form = buildMultipartForm(
-    { content: lines.join("\n"), allowed_mentions: { users: players.map((p) => p.userId) }, components: [LIVE_LAUNCH_ROW] },
-    pngBuf
-  );
+  const sessionMsg = getSessionMessage(channelId, date);
+  const pngBuf = await renderGroupPreview(guesses, gameSongs, gameMotifs, date, sessionErrors);
+  const payload = {
+    content: lines.join("\n"),
+    allowed_mentions: { users: players.map((p) => p.userId) },
+    components: [LIVE_LAUNCH_ROW],
+  };
+  if (sessionMsg?.messageId) payload.message_reference = { message_id: sessionMsg.messageId };
+  const form = buildMultipartForm(payload, pngBuf);
 
   const res = await botFetch(`/channels/${channelId}/messages`, { method: "POST", body: form });
   if (!res.ok) {
