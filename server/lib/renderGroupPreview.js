@@ -72,22 +72,24 @@ export async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date
   const COLS = n <= 1 ? 1 : n <= 2 ? 2 : 3;
   const ROWS = Math.ceil(Math.max(n, 1) / COLS);
 
-  const SQ_SIZE = n <= 1 ? 36 : n <= 4 ? 28 : 22;
-  const SQ_GAP  = n <= 1 ? 7  : n <= 4 ? 6  : 5;
-  const NAME_FONT = n <= 1 ? 22 : n <= 2 ? 20 : 18;
-  const SCORE_FONT = n <= 1 ? 28 : n <= 2 ? 24 : 22;
+  const SQ_SIZE   = n <= 1 ? 30 : n <= 4 ? 24 : 20;
+  const SQ_GAP    = n <= 1 ? 6  : n <= 4 ? 5  : 4;
+  const AV_SIDE   = n <= 1 ? 80 : n <= 4 ? 64 : 50;
+  const SCORE_FONT = n <= 1 ? 26 : n <= 4 ? 22 : 18;
+  const PAD       = 10;
   const PANEL_GAP = 16;
-  const HEADER_H = 100;
+  const HEADER_H  = 100;
 
   const W = n <= 1 ? 640 : n <= 2 ? 900 : 1280;
   const PANEL_W = Math.floor((W - (COLS + 1) * PANEL_GAP) / COLS);
 
-  const motifsPerRow = Math.max(1, Math.floor((PANEL_W - 24) / (SQ_SIZE + SQ_GAP)));
+  // Right column: starts after avatar + padding on each side
+  const rightW = PANEL_W - AV_SIDE - PAD * 3;
+  const motifsPerRow = Math.max(1, Math.floor(rightW / (SQ_SIZE + SQ_GAP)));
   const motifRows = motifList.length === 0 ? 1 : Math.ceil(motifList.length / motifsPerRow);
-  const nameAreaH = NAME_FONT + 20;
   const motifAreaH = motifRows * (SQ_SIZE + SQ_GAP);
-  const scoreAreaH = SCORE_FONT + 16;
-  const PANEL_H = nameAreaH + motifAreaH + scoreAreaH;
+  const scoreAreaH = SCORE_FONT + 10;
+  const PANEL_H = Math.max(motifAreaH + scoreAreaH + PAD * 2, AV_SIDE + PAD * 2);
 
   const H = HEADER_H + ROWS * (PANEL_H + PANEL_GAP) + PANEL_GAP;
 
@@ -119,39 +121,40 @@ export async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date
     const py = HEADER_H + row * (PANEL_H + PANEL_GAP);
     const p = players[i];
 
+    // Panel background
     ctx.fillStyle = "#313338";
     ctx.beginPath();
     ctx.roundRect(px, py, PANEL_W, PANEL_H, 10);
     ctx.fill();
 
-    const AV = NAME_FONT + 4;
-    let nameX = px + 12;
+    // Avatar — left side, centered vertically
+    const ax = px + PAD;
+    const ay = py + Math.floor((PANEL_H - AV_SIDE) / 2);
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(ax, ay, AV_SIDE, AV_SIDE, 8);
+    ctx.clip();
     if (p.avatar) {
       try {
-        const avatarUrl = `https://cdn.discordapp.com/avatars/${p.userId}/${p.avatar}.png?size=64`;
-        const img = await loadImage(avatarUrl);
-        const ax = px + 12, ay = py + 8;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(ax + AV / 2, ay + AV / 2, AV / 2, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(img, ax, ay, AV, AV);
-        ctx.restore();
-        nameX = ax + AV + 8;
-      } catch { /* skip avatar on error */ }
+        const img = await loadImage(`https://cdn.discordapp.com/avatars/${p.userId}/${p.avatar}.png?size=128`);
+        ctx.drawImage(img, ax, ay, AV_SIDE, AV_SIDE);
+      } catch {
+        ctx.fillStyle = "#4e5058";
+        ctx.fillRect(ax, ay, AV_SIDE, AV_SIDE);
+      }
+    } else {
+      ctx.fillStyle = "#4e5058";
+      ctx.fillRect(ax, ay, AV_SIDE, AV_SIDE);
     }
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold ${NAME_FONT}px Inter`;
-    ctx.textAlign = "left";
-    const maxChars = n <= 1 ? 30 : n <= 2 ? 24 : 18;
-    const name = p.username.length > maxChars ? p.username.slice(0, maxChars - 1) + "…" : p.username;
-    ctx.fillText(name, nameX, py + AV / 2 + NAME_FONT / 2 + 6);
+    ctx.restore();
 
-    let sx = px + 12;
-    let sy = py + nameAreaH;
+    // Motif squares — right column, top-aligned
+    const rightX = px + PAD + AV_SIDE + PAD;
+    let sx = rightX;
+    let sy = py + PAD;
     for (const motif of motifList) {
-      if (sx + SQ_SIZE > px + PANEL_W - 12) {
-        sx = px + 12;
+      if (sx + SQ_SIZE > px + PANEL_W - PAD) {
+        sx = rightX;
         sy += SQ_SIZE + SQ_GAP;
       }
       const guessed = p.slugs.has(motif.slug);
@@ -168,10 +171,11 @@ export async function renderGroupPreview(allGuesses, gameSongs, gameMotifs, date
       sx += SQ_SIZE + SQ_GAP;
     }
 
+    // Score — bottom-right of panel
     ctx.fillStyle = "#ffffff";
     ctx.font = `bold ${SCORE_FONT}px Inter`;
     ctx.textAlign = "right";
-    ctx.fillText(`${p.pts} pts`, px + PANEL_W - 12, py + PANEL_H - 12);
+    ctx.fillText(`${p.pts} pts`, px + PANEL_W - PAD, py + PANEL_H - PAD);
   }
 
   return canvas.toBuffer("image/png");
