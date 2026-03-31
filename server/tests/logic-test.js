@@ -202,6 +202,125 @@ test("2 players, done", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getGuesses startedAt filtering (regression: first guess dropped from embed)
+// ---------------------------------------------------------------------------
+
+import Database from "better-sqlite3";
+
+console.log("\n── getGuesses startedAt filtering ──");
+
+function makeTestDb() {
+  const db = new Database(":memory:");
+  db.exec(`
+    CREATE TABLE guesses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      channel_id TEXT NOT NULL, date TEXT NOT NULL,
+      user_id TEXT NOT NULL, username TEXT, avatar TEXT,
+      motif_slug TEXT NOT NULL,
+      guessed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(channel_id, date, user_id, motif_slug)
+    );
+    CREATE TABLE session_messages (
+      channel_id TEXT NOT NULL, date TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (channel_id, date)
+    );
+  `);
+  return db;
+}
+
+test("regression: startedAt set after first guess excludes that guess (documents the old bug)", () => {
+  const db = makeTestDb();
+  const pastTs  = "2026-01-01 10:00:00"; // first guess time
+  const laterTs = "2026-01-01 10:00:02"; // startedAt set 2s later (Discord API roundtrip)
+
+  db.prepare(`INSERT INTO guesses (channel_id, date, user_id, motif_slug, guessed_at)
+              VALUES ('ch', '2026-01-01', 'u1', 'motif-a', ?)`).run(pastTs);
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', 'msg1', ?, ?)`).run(laterTs, laterTs);
+
+  const session = db.prepare(`SELECT started_at AS startedAt FROM session_messages
+                               WHERE channel_id='ch' AND date='2026-01-01'`).get();
+  const guesses = db.prepare(`SELECT * FROM guesses
+                               WHERE channel_id='ch' AND date='2026-01-01'
+                               AND guessed_at >= ?`).all(session.startedAt);
+  // Under the old flow the first guess was invisible to editGroupMessage
+  assert.equal(guesses.length, 0, "old flow: first guess is filtered out when startedAt > guessed_at");
+});
+
+test("fix: initSession before first guess keeps that guess visible in subsequent queries", () => {
+  const db = makeTestDb();
+  const sessionTs = "2026-01-01 10:00:00"; // session initialised on WS connect
+  const guessTs   = "2026-01-01 10:00:02"; // guess arrives after WS connect
+
+  // initSession (INSERT OR IGNORE) fires on WS connect — before any guess
+  db.prepare(`INSERT OR IGNORE INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', '', ?, ?)`).run(sessionTs, sessionTs);
+
+  // Guess arrives
+  db.prepare(`INSERT INTO guesses (channel_id, date, user_id, motif_slug, guessed_at)
+              VALUES ('ch', '2026-01-01', 'u1', 'motif-a', ?)`).run(guessTs);
+
+  // upsertSessionMessage (called after Discord POST) updates message_id only; startedAt unchanged
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', 'msg1', datetime('now'), datetime('now'))
+              ON CONFLICT(channel_id, date) DO UPDATE SET
+                message_id     = excluded.message_id,
+                last_active_at = datetime('now')`).run();
+
+  const session = db.prepare(`SELECT started_at AS startedAt FROM session_messages
+                               WHERE channel_id='ch' AND date='2026-01-01'`).get();
+  const guesses = db.prepare(`SELECT * FROM guesses
+                               WHERE channel_id='ch' AND date='2026-01-01'
+                               AND guessed_at >= ?`).all(session.startedAt);
+  assert.equal(guesses.length, 1, "fix: first guess is included when startedAt was set before it");
+});
+
+test("initSession is a no-op when session already exists (does not reset startedAt)", () => {
+  const db = makeTestDb();
+  const originalTs = "2026-01-01 09:00:00";
+
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', 'existing-msg', ?, ?)`).run(originalTs, originalTs);
+
+  // Simulate calling initSession again (INSERT OR IGNORE should do nothing)
+  db.prepare(`INSERT OR IGNORE INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', '', datetime('now'), datetime('now'))`).run();
+
+  const session = db.prepare(`SELECT started_at AS startedAt, message_id AS messageId
+                               FROM session_messages WHERE channel_id='ch' AND date='2026-01-01'`).get();
+  assert.equal(session.startedAt, originalTs, "startedAt must not be overwritten by initSession");
+  assert.equal(session.messageId, "existing-msg", "messageId must not be overwritten by initSession");
+});
+
+test("resetRoom resets startedAt so guesses from the previous session are excluded", () => {
+  const db = makeTestDb();
+  const oldTs = "2026-01-01 08:00:00";
+
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', 'old-msg', ?, ?)`).run(oldTs, oldTs);
+  db.prepare(`INSERT INTO guesses (channel_id, date, user_id, motif_slug, guessed_at)
+              VALUES ('ch', '2026-01-01', 'u1', 'motif-a', ?)`).run(oldTs);
+
+  // resetRoom fires after 4h idle
+  const resetTs = "2026-01-01 13:00:00";
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+              VALUES ('ch', '2026-01-01', '', ?, ?)
+              ON CONFLICT(channel_id, date) DO UPDATE SET
+                message_id='', started_at=excluded.started_at, last_active_at=excluded.last_active_at`)
+    .run(resetTs, resetTs);
+
+  const session = db.prepare(`SELECT started_at AS startedAt FROM session_messages
+                               WHERE channel_id='ch' AND date='2026-01-01'`).get();
+  const guesses = db.prepare(`SELECT * FROM guesses
+                               WHERE channel_id='ch' AND date='2026-01-01'
+                               AND guessed_at >= ?`).all(session.startedAt);
+  assert.equal(guesses.length, 0, "old-session guesses are correctly excluded after room reset");
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 

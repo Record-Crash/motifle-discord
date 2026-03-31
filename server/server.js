@@ -8,7 +8,7 @@ import { WebSocketServer } from "ws";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { readFileSync } from "fs";
 import cron from "node-cron";
-import { insertGuess, getGuesses, storeWebhook, upsertSessionError, getSessionMessage, resetRoom } from "./db.js";
+import { insertGuess, getGuesses, storeWebhook, upsertSessionError, getSessionMessage, resetRoom, initSession } from "./db.js";
 import { upsertBotMessage, postDailySummaries, startGateway } from "./bot.js";
 
 const app = express();
@@ -411,6 +411,9 @@ wss.on("connection", (ws, req) => {
         console.log(`[ws] room expired for ${channelId} ${date} (idle ${Math.round(idleMs / 3600000)}h), starting fresh`);
       }
     }
+    // Ensure started_at is recorded before any guesses arrive.
+    // INSERT OR IGNORE: no-op if the session already exists (resetRoom above handles that case).
+    initSession(channelId, date);
   }
 
   if (!rooms.has(key)) rooms.set(key, new Set());

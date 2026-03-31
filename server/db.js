@@ -123,6 +123,15 @@ export function resetRoom(channelId, date) {
   return stmtResetRoom.run(channelId, date);
 }
 
+const stmtInitSession = db.prepare(`
+  INSERT OR IGNORE INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
+  VALUES (?, ?, '', datetime('now'), datetime('now'))
+`);
+
+export function initSession(channelId, date) {
+  return stmtInitSession.run(channelId, date);
+}
+
 export function getLatestSessionMessage(channelId) {
   return stmtGetLatestSession.get(channelId);
 }
