@@ -225,10 +225,27 @@ function makeTestDb() {
       message_id TEXT NOT NULL,
       started_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+      summary_message_id TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (channel_id, date)
     );
   `);
   return db;
+}
+
+// Mirrors the getLatestSessionMessage query in db.js
+function getLatestSessionMessage(db, channelId) {
+  return db.prepare(`
+    SELECT CASE WHEN summary_message_id != '' THEN summary_message_id ELSE message_id END AS messageId
+    FROM session_messages
+    WHERE channel_id = ? AND (message_id != '' OR summary_message_id != '')
+    ORDER BY date DESC LIMIT 1
+  `).get(channelId);
+}
+
+// Mirrors storeSummaryMessage in db.js
+function storeSummaryMessage(db, channelId, date, messageId) {
+  db.prepare(`UPDATE session_messages SET summary_message_id = ? WHERE channel_id = ? AND date = ?`)
+    .run(messageId, channelId, date);
 }
 
 test("regression: startedAt set after first guess excludes that guess (documents the old bug)", () => {
@@ -318,6 +335,69 @@ test("resetRoom resets startedAt so guesses from the previous session are exclud
                                WHERE channel_id='ch' AND date='2026-01-01'
                                AND guessed_at >= ?`).all(session.startedAt);
   assert.equal(guesses.length, 0, "old-session guesses are correctly excluded after room reset");
+});
+
+// ---------------------------------------------------------------------------
+// Summary embed reply chain
+// ---------------------------------------------------------------------------
+
+console.log("\n── summary embed reply chain ──");
+
+test("regression: without summary_message_id, next room replies to last room message (not summary)", () => {
+  // Old schema/behaviour: summary message ID was never stored anywhere.
+  // getLatestSessionMessage returned the room message_id, so the summary was
+  // orphaned — it replied to the room message, but the next room also replied
+  // to the room message, breaking the chain.
+  const db = makeTestDb();
+
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, summary_message_id)
+              VALUES ('ch', '2026-01-01', 'room-msg-1', '')`).run();
+
+  // Summary was posted but its ID was NOT stored (old behaviour):
+  // storeSummaryMessage was never called, summary_message_id stays ''
+
+  const result = getLatestSessionMessage(db, "ch");
+  assert.equal(result?.messageId, "room-msg-1", "old flow: next room links to room message, skipping summary");
+});
+
+test("fix: after summary is stored, next room replies to the summary message", () => {
+  // New behaviour: postDailySummary calls storeSummaryMessage, which writes
+  // the summary message ID into summary_message_id. getLatestSessionMessage
+  // prefers summary_message_id over message_id, so the next day's first room
+  // correctly continues the chain from the summary.
+  const db = makeTestDb();
+
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, summary_message_id)
+              VALUES ('ch', '2026-01-01', 'room-msg-1', '')`).run();
+
+  // postDailySummary posts and then calls storeSummaryMessage:
+  storeSummaryMessage(db, "ch", "2026-01-01", "summary-msg-1");
+
+  const result = getLatestSessionMessage(db, "ch");
+  assert.equal(result?.messageId, "summary-msg-1", "fix: next room links to summary, not the last room message");
+});
+
+test("no summary yet: falls back to room message", () => {
+  const db = makeTestDb();
+
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, summary_message_id)
+              VALUES ('ch', '2026-01-01', 'room-msg-1', '')`).run();
+
+  const result = getLatestSessionMessage(db, "ch");
+  assert.equal(result?.messageId, "room-msg-1", "without a summary, falls back to room message_id");
+});
+
+test("multiple days: prefers summary of the most recent date", () => {
+  const db = makeTestDb();
+
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, summary_message_id)
+              VALUES ('ch', '2026-01-01', 'room-msg-1', 'summary-msg-1')`).run();
+  db.prepare(`INSERT INTO session_messages (channel_id, date, message_id, summary_message_id)
+              VALUES ('ch', '2026-01-02', 'room-msg-2', '')`).run();
+
+  // Day 2 has a room message but no summary yet — should reply to day 2 room msg
+  const result = getLatestSessionMessage(db, "ch");
+  assert.equal(result?.messageId, "room-msg-2", "most recent date wins even when it has no summary");
 });
 
 // ---------------------------------------------------------------------------

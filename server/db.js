@@ -64,8 +64,9 @@ const stmtSelect = db.prepare(`
 // Constant literal required — ALTER TABLE ADD COLUMN does not allow function-call defaults.
 // Rows from before the migration get '1970-01-01 00:00:00' which is safely ancient (will expire).
 for (const col of [
-  `ALTER TABLE session_messages ADD COLUMN started_at     TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'`,
-  `ALTER TABLE session_messages ADD COLUMN last_active_at TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'`,
+  `ALTER TABLE session_messages ADD COLUMN started_at        TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'`,
+  `ALTER TABLE session_messages ADD COLUMN last_active_at    TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'`,
+  `ALTER TABLE session_messages ADD COLUMN summary_message_id TEXT NOT NULL DEFAULT ''`,
 ]) {
   try { db.exec(col); } catch { /* already exists */ }
 }
@@ -77,9 +78,13 @@ const stmtGetSession = db.prepare(`
   FROM session_messages WHERE channel_id = ? AND date = ?
 `);
 const stmtGetLatestSession = db.prepare(`
-  SELECT message_id AS messageId FROM session_messages
-  WHERE channel_id = ? AND message_id != ''
+  SELECT CASE WHEN summary_message_id != '' THEN summary_message_id ELSE message_id END AS messageId
+  FROM session_messages
+  WHERE channel_id = ? AND (message_id != '' OR summary_message_id != '')
   ORDER BY date DESC LIMIT 1
+`);
+const stmtStoreSummaryMessage = db.prepare(`
+  UPDATE session_messages SET summary_message_id = ? WHERE channel_id = ? AND date = ?
 `);
 const stmtUpsertSession = db.prepare(`
   INSERT INTO session_messages (channel_id, date, message_id, started_at, last_active_at)
@@ -134,6 +139,10 @@ export function initSession(channelId, date) {
 
 export function getLatestSessionMessage(channelId) {
   return stmtGetLatestSession.get(channelId);
+}
+
+export function storeSummaryMessage(channelId, date, messageId) {
+  return stmtStoreSummaryMessage.run(messageId, channelId, date);
 }
 
 export function getAllChannelsForDate(date) {

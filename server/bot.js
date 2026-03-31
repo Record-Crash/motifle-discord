@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 import WebSocket from "ws";
-import { getGuesses, getAllChannelsForDate, getSessionMessage, upsertSessionMessage, getSessionErrors, getLatestSessionMessage } from "./db.js";
+import { getGuesses, getAllChannelsForDate, getSessionMessage, upsertSessionMessage, getSessionErrors, getLatestSessionMessage, storeSummaryMessage } from "./db.js";
 import { renderGroupPreview, scorePlayers, songForDate } from "./lib/renderGroupPreview.js";
 
 const DISCORD_API = "https://discord.com/api/v10";
@@ -159,7 +159,9 @@ async function postDailySummary(channelId, date, gameSongs, gameMotifs) {
     const text = await res.text();
     throw new Error(`postDailySummary failed ${res.status}: ${text}`);
   }
-  console.log(`[bot] posted daily summary for ${channelId} ${date}`);
+  const msg = await res.json();
+  storeSummaryMessage(channelId, date, msg.id);
+  console.log(`[bot] posted daily summary ${msg.id} for ${channelId} ${date}`);
 }
 
 // ---------------------------------------------------------------------------
